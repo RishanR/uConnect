@@ -5,7 +5,7 @@ from flask_jwt_extended import JWTManager,jwt_required,create_access_token
 from flask_mail import Mail, Message
 from sqlalchemy import Column, Integer,String, Float, Boolean
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired
-import sendgrid
+from werkzeug.utils import secure_filename
 from sendgrid.helpers.mail import *
 import json
 import os
@@ -17,6 +17,9 @@ import datetime
 import requests
 from functools import wraps
 import re
+import base64
+from PIL import Image
+from io import BytesIO
 
 regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'
 
@@ -24,6 +27,13 @@ app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI']='sqlite:///' + os.path.join(basedir,'users.db')
 app.config['SECRET_KEY']='secret-key'
+
+UPLOAD_FOLDER = '/server/static'
+ALLOWED_EXTENSIONS = set(['jpg', 'jpeg'])
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+with open("static/image.jpg", "rb") as image_file:
+    data = base64.b64encode(image_file.read())
 
 db=SQLAlchemy(app)
 @app.cli.command('dbCreate')
@@ -52,6 +62,7 @@ def db_seed():
                              skills = 'sucking at life, league',
                              interests = 'wrist action',
                              password=hashed_password,
+                             imagePath = data, 
                              public_id=str(uuid.uuid4()),
                              )
     db.session.add(testUser)
@@ -75,6 +86,7 @@ class User(db.Model):
     linkedln = Column(String())
     skills = Column(String())
     interests = Column(String())
+    imagePath = Column(String())
 
 def token_required(f):
     @wraps(f)
@@ -130,7 +142,6 @@ def register():
         return jsonify(message='Enter your linkedin')
     if data['interests'] == "":
         return jsonify(message="Enter your interest")
-    
     hashed_password=generate_password_hash(data['password'], method='sha256')
 
     new_user = User(
@@ -147,6 +158,7 @@ def register():
         skills = data['skills'],
         interests = data['interests'],
         password=hashed_password,
+        imagePath = data['imagePath'],
         public_id=str(uuid.uuid4()),
     )
 
